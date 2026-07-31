@@ -42,7 +42,12 @@ servidor.
    nenhum dado** porque o share estava desmontado.
 3. O Duplicati executa os jobs de backup (origem: `/fileserver`; destino:
    `/backups` local ou um destino remoto — S3, SFTP, Google Drive etc.).
-4. Quando é preciso restaurar algo, restaura-se para `/backup-restore`, que é a
+4. Ao final de cada job, o Duplicati executa
+   [`scripts/notify-telegram.sh`](scripts/notify-telegram.sh)
+   (opção `run-script-after`) e envia a **devolutiva do backup** para o
+   Telegram: resultado (✅/⚠️/❌/💥), duração e estatísticas de arquivos e
+   pastas processados.
+5. Quando é preciso restaurar algo, restaura-se para `/backup-restore`, que é a
    mesma pasta servida pelo File Browser (`/srv/restore`) — o usuário baixa os
    arquivos pelo navegador, sem acesso ao servidor.
 
@@ -53,9 +58,11 @@ servidor.
 ├── docker-compose.yml      # Definição dos serviços
 ├── .env.example            # Modelo de variáveis (copiar para .env)
 ├── scripts/
-│   ├── check-mounts.sh     # Valida/remonta os shares antes do backup
-│   ├── .telegram.example   # Modelo de credenciais do bot (copiar para .telegram)
-│   └── log/                # Logs do script (gerado em runtime)
+│   ├── check-mounts.sh     # Valida/remonta os shares antes do backup (roda no host)
+│   ├── .telegram.example   # Credenciais do check-mounts (copiar para .telegram)
+│   ├── notify-telegram.sh  # Devolutiva do backup no Telegram (roda no container)
+│   ├── telegram_config.env.example  # Credenciais do notify (copiar para telegram_config.env)
+│   └── log/                # Logs dos scripts (gerado em runtime)
 ├── duplicati/
 │   ├── config/             # Configuração/banco do Duplicati (gerado em runtime)
 │   └── backups/            # Destino local dos backups (opcional)
@@ -159,6 +166,47 @@ O que estiver caído é remontado automaticamente a partir do `/etc/fstab`
 O log fica em `scripts/log/check-mounts.log`. O script usa lock
 (`/var/lock/check-mounts.lock`) para nunca sobrepor execuções, e retorna
 exit code `1` em falha — útil para encadear com outras automações.
+
+## Devolutiva do backup (`scripts/notify-telegram.sh`)
+
+Complemento do check-mounts: enquanto ele valida o **antes**, este script
+reporta o **depois**. O Duplicati o executa ao final de cada job e envia um
+relatório ao Telegram com resultado (✅ Sucesso / ⚠️ Alerta / ❌ Erro /
+💥 Fatal), duração e estatísticas (arquivos adicionados, alterados,
+excluídos, examinados — e o equivalente para restaurações).
+
+Diferente do check-mounts (que roda no **host**, via cron), este roda
+**dentro do container** do Duplicati — a pasta `./scripts` já é montada como
+`/scripts` (somente leitura) no `docker-compose.yml`.
+
+Baseado no projeto
+[spupuz/duplicati-telegram-notifications](https://github.com/spupuz/duplicati-telegram-notifications),
+com dois ajustes para uso em produção: o **auto-update foi removido** (o
+script baixava e executava a versão mais recente direto do GitHub — as
+versões aqui são controladas pelo próprio repositório) e a chamada ao
+Telegram passou a **validar o certificado TLS** (removido o `curl -k`).
+
+**Configuração:**
+
+1. Crie o arquivo de credenciais:
+
+   ```bash
+   cd scripts
+   cp telegram_config.env.example telegram_config.env
+   chmod 600 telegram_config.env   # e preencha TELEGRAM_TOKEN e TELEGRAM_CHATID
+   ```
+
+2. Em cada job do Duplicati, em **Opções avançadas**, adicione:
+
+   | Opção               | Valor                        |
+   |---------------------|------------------------------|
+   | `run-script-after`  | `/scripts/notify-telegram.sh` |
+   | `run-script-before` | `/scripts/notify-telegram.sh` *(opcional — avisa também no início)* |
+
+> Os dois scripts usam arquivos de credenciais separados (`.telegram` no host,
+> `telegram_config.env` no container), então podem inclusive notificar chats
+> diferentes — ex.: check-mounts para o grupo técnico e a devolutiva do backup
+> para o grupo do cliente.
 
 ## Restauração
 

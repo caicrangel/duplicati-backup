@@ -18,6 +18,9 @@ services:
       # Pasta de restauração: os arquivos restaurados aqui ficam acessíveis
       # pelo File Browser em /srv/restore.
       - ./filebrowser/srv/restore:/backup-restore
+      # Scripts de notificação executados pelo Duplicati (run-script-before/after).
+      # Somente leitura: o container não pode alterar os scripts.
+      - ./scripts:/scripts:ro
       - /etc/localtime:/etc/localtime:ro
 
       # Mapeamento de rede para realizar o backup dentro do duplicati.

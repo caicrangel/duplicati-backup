@@ -1,7 +1,7 @@
 # Segredos locais
 .env
 scripts/check-mounts.env
-scripts/notify-telegram.env
+scripts/telegram_config.env
 
 # Logs dos scripts
 scripts/log/*

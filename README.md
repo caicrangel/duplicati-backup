@@ -43,7 +43,7 @@ servidor.
 3. O Duplicati executa os jobs de backup (origem: `/fileserver`; destino:
    `/backups` local ou um destino remoto — S3, SFTP, Google Drive etc.).
 4. Ao final de cada job, o Duplicati executa
-   [`scripts/notify-telegram.sh`](scripts/notify-telegram.sh)
+   [`scripts/notify_to_telegram.sh`](scripts/notify_to_telegram.sh)
    (opção `run-script-after`) e envia a **devolutiva do backup** para o
    Telegram: resultado (✅/⚠️/❌/💥), duração e estatísticas de arquivos e
    pastas processados.
@@ -60,8 +60,8 @@ servidor.
 ├── scripts/
 │   ├── check-mounts.sh              # Valida/remonta os shares antes do backup (roda no host)
 │   ├── check-mounts.env.example     # Credenciais (copiar para check-mounts.env)
-│   ├── notify-telegram.sh           # Devolutiva do backup no Telegram (roda no container)
-│   ├── notify-telegram.env.example  # Credenciais (copiar para notify-telegram.env)
+│   ├── notify_to_telegram.sh        # Devolutiva do backup no Telegram (roda no container)
+│   ├── telegram_config.env.example  # Credenciais (copiar para telegram_config.env)
 │   └── log/                         # Logs dos scripts (gerado em runtime)
 ├── duplicati/
 │   ├── config/             # Configuração/banco do Duplicati (gerado em runtime)
@@ -167,7 +167,7 @@ O log fica em `scripts/log/check-mounts.log`. O script usa lock
 (`/var/lock/check-mounts.lock`) para nunca sobrepor execuções, e retorna
 exit code `1` em falha — útil para encadear com outras automações.
 
-## Devolutiva do backup (`scripts/notify-telegram.sh`)
+## Devolutiva do backup (`scripts/notify_to_telegram.sh`)
 
 Complemento do check-mounts: enquanto ele valida o **antes**, este script
 reporta o **depois**. O Duplicati o executa ao final de cada job e envia um
@@ -192,19 +192,19 @@ Telegram passou a **validar o certificado TLS** (removido o `curl -k`).
 
    ```bash
    cd scripts
-   cp notify-telegram.env.example notify-telegram.env
-   chmod 600 notify-telegram.env   # e preencha TELEGRAM_TOKEN e TELEGRAM_CHATID
+   cp telegram_config.env.example telegram_config.env
+   chmod 600 telegram_config.env   # e preencha TELEGRAM_TOKEN e TELEGRAM_CHATID
    ```
 
 2. Em cada job do Duplicati, em **Opções avançadas**, adicione:
 
    | Opção               | Valor                        |
    |---------------------|------------------------------|
-   | `run-script-after`  | `/scripts/notify-telegram.sh` |
-   | `run-script-before` | `/scripts/notify-telegram.sh` *(opcional — avisa também no início)* |
+   | `run-script-after`  | `/scripts/notify_to_telegram.sh` |
+   | `run-script-before` | `/scripts/notify_to_telegram.sh` *(opcional — avisa também no início)* |
 
 > Cada script tem seu próprio arquivo de credenciais, com o mesmo nome do
-> script (`check-mounts.env` e `notify-telegram.env`), então podem inclusive
+> script (`check-mounts.env` e `telegram_config.env`), então podem inclusive
 > notificar chats diferentes — ex.: check-mounts para o grupo técnico e a
 > devolutiva do backup para o grupo do cliente.
 

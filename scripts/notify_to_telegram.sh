@@ -9,8 +9,8 @@
 # Duplicati can run scripts before and after backups. This
 # functionality is available in the advanced options of any backup job (UI) or
 # as option (CLI). The (advanced) options to run scripts are
-# --run-script-before = /scripts/notify-telegram.sh
-# --run-script-after = /scripts/notify-telegram.sh
+# --run-script-before = /scripts/notify_to_telegram.sh
+# --run-script-after = /scripts/notify_to_telegram.sh
 #
 # Neste stack, a pasta ./scripts do host e montada como /scripts (somente
 # leitura) dentro do container do Duplicati — veja o docker-compose.yml.
@@ -18,7 +18,7 @@
 # To work, you need to set two required variables:
 #  TELEGRAM_TOKEN
 #  TELEGRAM_CHATID
-# These variables must be configured in 'notify-telegram.env' located
+# These variables must be configured in 'telegram_config.env' located
 # in the same directory as the script, or set as environment variables.
 #
 # DISCLAIMER (AS IS):
@@ -30,7 +30,7 @@
 # 1. Locate the script directory to load the relative configuration file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CONFIG_FILE="${SCRIPT_DIR}/notify-telegram.env"
+CONFIG_FILE="${SCRIPT_DIR}/telegram_config.env"
 
 # 2. Load variables from config file if it exists, cleaning Windows CRLF line endings (\r)
 if [ -f "$CONFIG_FILE" ]; then
@@ -40,7 +40,7 @@ fi
 # 3. Verify presence of required variables (loaded from config or inherited from env)
 if [ -z "$TELEGRAM_TOKEN" ] || [ -z "$TELEGRAM_CHATID" ]; then
     echo "Error: TELEGRAM_TOKEN or TELEGRAM_CHATID is not configured!" >&2
-    echo "Please create a 'notify-telegram.env' file in the same directory as the script" >&2
+    echo "Please create a 'telegram_config.env' file in the same directory as the script" >&2
     echo "or set the corresponding environment variables." >&2
     exit 1
 fi

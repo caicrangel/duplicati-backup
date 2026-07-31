@@ -34,9 +34,15 @@ servidor.
 
 1. O share do servidor de arquivos é montado **no host** (ex.: `/mnt/fileserver`)
    e entra no container do Duplicati como `/fileserver`, **somente leitura**.
-2. O Duplicati executa os jobs de backup (origem: `/fileserver`; destino:
+2. Antes do horário do backup, o cron do root executa
+   [`scripts/check-mounts.sh`](scripts/check-mounts.sh): ele valida cada ponto
+   de montagem (montado, acessível, tipo de filesystem correto e com conteúdo),
+   remonta automaticamente o que estiver caído e envia o relatório para o
+   Telegram. Isso evita o cenário clássico de **backup "bem-sucedido" sem
+   nenhum dado** porque o share estava desmontado.
+3. O Duplicati executa os jobs de backup (origem: `/fileserver`; destino:
    `/backups` local ou um destino remoto — S3, SFTP, Google Drive etc.).
-3. Quando é preciso restaurar algo, restaura-se para `/backup-restore`, que é a
+4. Quando é preciso restaurar algo, restaura-se para `/backup-restore`, que é a
    mesma pasta servida pelo File Browser (`/srv/restore`) — o usuário baixa os
    arquivos pelo navegador, sem acesso ao servidor.
 
@@ -46,6 +52,10 @@ servidor.
 .
 ├── docker-compose.yml      # Definição dos serviços
 ├── .env.example            # Modelo de variáveis (copiar para .env)
+├── scripts/
+│   ├── check-mounts.sh     # Valida/remonta os shares antes do backup
+│   ├── .telegram.example   # Modelo de credenciais do bot (copiar para .telegram)
+│   └── log/                # Logs do script (gerado em runtime)
 ├── duplicati/
 │   ├── config/             # Configuração/banco do Duplicati (gerado em runtime)
 │   └── backups/            # Destino local dos backups (opcional)
@@ -100,6 +110,55 @@ versiona apenas o template.
 
 6. **Criar o job de backup no Duplicati:** origem `/fileserver`, destino
    `/backups` (ou remoto), agendamento e retenção conforme a necessidade.
+
+7. **Configurar a verificação de montagens** (veja a seção abaixo).
+
+## Verificação de montagens (`scripts/check-mounts.sh`)
+
+Falha silenciosa clássica: o share cai, o Duplicati roda mesmo assim e gera um
+backup "bem-sucedido" **vazio**. O script elimina esse risco verificando, antes
+do horário do backup, se cada ponto de montagem está:
+
+- **montado** (`mountpoint`) e **acessível** (com timeout, para detectar mount
+  travado por I/O);
+- com o **filesystem esperado** (`cifs`/`nfs4` — e não o disco local por baixo
+  do ponto de montagem);
+- **populado** com um mínimo de itens (sem depender de arquivo sentinela).
+
+O que estiver caído é remontado automaticamente a partir do `/etc/fstab`
+(3 tentativas), e um relatório formatado é enviado ao Telegram
+(🟢 tudo ok / 🟡 recuperado / 🔴 falha — não faça backup).
+
+**Configuração:**
+
+1. Edite o array `MOUNTS` no topo do script com os seus pontos de montagem
+   (cada um precisa ter entrada no `/etc/fstab`):
+
+   ```bash
+   MOUNTS=(
+     "/mnt/fileserver/usuarios|cifs"
+     "/mnt/fileserver/publico|cifs"
+   )
+   ```
+
+2. Configure as credenciais do Telegram:
+
+   ```bash
+   cd scripts
+   cp .telegram.example .telegram
+   chmod 600 .telegram   # e preencha TG_BOT_TOKEN e TG_CHAT_ID
+   ```
+
+3. Agende no crontab do **root**, antes do horário do backup do Duplicati
+   (ex.: verificação às 21:30 para backup às 22:00):
+
+   ```cron
+   30 21 * * * /caminho/do/repo/scripts/check-mounts.sh >/dev/null 2>&1
+   ```
+
+O log fica em `scripts/log/check-mounts.log`. O script usa lock
+(`/var/lock/check-mounts.lock`) para nunca sobrepor execuções, e retorna
+exit code `1` em falha — útil para encadear com outras automações.
 
 ## Restauração
 

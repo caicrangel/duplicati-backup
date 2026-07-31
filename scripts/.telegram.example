@@ -1,0 +1,8 @@
+# Copie este arquivo para .telegram e restrinja a permissao:
+#   cp .telegram.example .telegram && chmod 600 .telegram
+#
+# TG_BOT_TOKEN: token do bot criado com o @BotFather
+# TG_CHAT_ID:   ID do chat/grupo que recebera os alertas
+#               (descubra com o @userinfobot ou pela API getUpdates)
+TG_BOT_TOKEN=""
+TG_CHAT_ID=""

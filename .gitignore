@@ -1,5 +1,10 @@
 # Segredos locais
 .env
+scripts/.telegram
+
+# Logs dos scripts
+scripts/log/*
+!scripts/log/.gitkeep
 
 # Dados de runtime dos containers (mantém apenas o .gitkeep de cada pasta)
 duplicati/config/*

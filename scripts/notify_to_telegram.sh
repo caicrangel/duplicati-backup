@@ -1,76 +1,80 @@
 #!/bin/bash
 
 #########################################################################
-# Enhanced Script for Telegram Notifications about Duplicati Backup Results
-# Based on spupuz/duplicati-telegram-notifications.
-# Released "AS IS" without any warranty of any kind.
+# notify_to_telegram.sh
+# Envia ao Telegram o relatorio de execucao dos jobs do Duplicati.
+#
+# INTEGRACAO
+#   O Duplicati executa scripts antes e depois de cada operacao. Configure
+#   nas opcoes avancadas do job (interface web) ou via CLI:
+#     --run-script-before = /scripts/notify_to_telegram.sh
+#     --run-script-after  = /scripts/notify_to_telegram.sh
+#
+#   Neste stack a pasta ./scripts do host e montada como /scripts (somente
+#   leitura) dentro do container do Duplicati — veja o docker-compose.yml.
+#
+# CONFIGURACAO
+#   Requer duas variaveis, definidas em 'telegram_config.env' no mesmo
+#   diretorio deste script, ou exportadas no ambiente:
+#     TELEGRAM_TOKEN    token do bot
+#     TELEGRAM_CHATID   ID do chat/grupo de destino
+#
+# ENTRADA
+#   O Duplicati expoe o contexto da operacao em variaveis de ambiente
+#   (DUPLICATI__EVENTNAME, DUPLICATI__OPERATIONNAME, DUPLICATI__PARSED_RESULT,
+#   DUPLICATI__RESULTFILE, DUPLICATI__backup_name), consumidas abaixo.
+#
+# SAIDA
+#   Mensagem HTML enviada via API do Telegram. Sempre encerra com codigo 0
+#   para nao interferir no resultado do job.
 #########################################################################
 
-# Duplicati can run scripts before and after backups. This
-# functionality is available in the advanced options of any backup job (UI) or
-# as option (CLI). The (advanced) options to run scripts are
-# --run-script-before = /scripts/notify_to_telegram.sh
-# --run-script-after = /scripts/notify_to_telegram.sh
-#
-# Neste stack, a pasta ./scripts do host e montada como /scripts (somente
-# leitura) dentro do container do Duplicati — veja o docker-compose.yml.
-
-# To work, you need to set two required variables:
-#  TELEGRAM_TOKEN
-#  TELEGRAM_CHATID
-# These variables must be configured in 'telegram_config.env' located
-# in the same directory as the script, or set as environment variables.
-#
-# DISCLAIMER (AS IS):
-# This script is provided "as is", without warranty of any kind, express or
-# implied. In no event shall the authors or copyright holders be liable for
-# any claim, damages, data loss or other liability arising from its use.
-#########################################################################
-
-# 1. Locate the script directory to load the relative configuration file
+# 1. Diretorio do proprio script: o arquivo de configuracao e lido daqui,
+#    independente do diretorio de trabalho de quem invocou o script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 CONFIG_FILE="${SCRIPT_DIR}/telegram_config.env"
 
-# 2. Load variables from config file if it exists, cleaning Windows CRLF line endings (\r)
+# 2. Carrega as variaveis do arquivo de configuracao, removendo quebras de
+#    linha CRLF (\r) para tolerar arquivos editados no Windows.
 if [ -f "$CONFIG_FILE" ]; then
     source <(tr -d '\r' < "$CONFIG_FILE")
 fi
 
-# 3. Verify presence of required variables (loaded from config or inherited from env)
+# 3. Valida as variaveis obrigatorias (do arquivo ou herdadas do ambiente)
 if [ -z "$TELEGRAM_TOKEN" ] || [ -z "$TELEGRAM_CHATID" ]; then
-    echo "Error: TELEGRAM_TOKEN or TELEGRAM_CHATID is not configured!" >&2
-    echo "Please create a 'telegram_config.env' file in the same directory as the script" >&2
-    echo "or set the corresponding environment variables." >&2
+    echo "ERRO: TELEGRAM_TOKEN ou TELEGRAM_CHATID nao configurado!" >&2
+    echo "Crie o arquivo 'telegram_config.env' no mesmo diretorio do script" >&2
+    echo "ou exporte as variaveis correspondentes no ambiente." >&2
     exit 1
 fi
 
 TELEGRAM_URL="https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage"
 
 # -----------------------------------------------------------------------
-# SAFE PARSER (replaces the previous `eval` usage)
-# Reads "Key: Value" lines from the Duplicati result file and assigns each
-# value to a shell variable of the same name using `printf -v`, which never
-# executes the value. Only keys that are valid variable names are accepted,
-# so a folder/file name containing shell metacharacters can no longer be
-# interpreted as code.
+# PARSER SEGURO DO ARQUIVO DE RESULTADO
+# Le linhas no formato "Chave: Valor" e atribui cada valor a uma variavel
+# de mesmo nome via `printf -v`, que nunca executa o conteudo. Apenas chaves
+# que sejam nomes validos de variavel sao aceitas, de modo que nomes de
+# arquivos/pastas com metacaracteres de shell nao possam ser interpretados
+# como codigo (evita injecao de comando via nome de arquivo).
 # -----------------------------------------------------------------------
 function parseResultFile() {
     local file="$1"
     local line key value
     [ -f "$file" ] && [ -r "$file" ] || return 0
     while IFS= read -r line; do
-        # Match "Key: Value" where Key is a valid variable name
+        # Casa "Chave: Valor" com Chave sendo um nome valido de variavel
         if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*):[[:space:]]*(.*)$ ]]; then
             key="${BASH_REMATCH[1]}"
             value="${BASH_REMATCH[2]}"
-            value="${value%$'\r'}"   # strip trailing CR (Windows line endings)
+            value="${value%$'\r'}"   # remove CR final (quebra de linha Windows)
             printf -v "$key" '%s' "$value"
         fi
     done < "$file"
 }
 
-# Function to convert file sizes to human-readable format
+# Converte tamanhos em bytes para formato legivel (Kb/Mb/Gb/Tb)
 function getFriendlyFileSize() {
     local size="$1"
     case "$size" in
@@ -93,7 +97,7 @@ function getFriendlyFileSize() {
     fi
 }
 
-# Function to generate the result line with appropriate icon
+# Monta o cabecalho do relatorio (tarefa, operacao, status e icone do resultado)
 function getResultLine () {
     CURRENT_STATUS=`echo "BEFORE=Iniciado,AFTER=Concluído" | sed "s/.*$DUPLICATI__EVENTNAME=\([^,]*\).*/\1/"`
     RESULT_ICON=`echo "Unknown=🟣,Success=✅,Warning=⚠️,Error=❌,Fatal=💥" | sed "s/.*$DUPLICATI__PARSED_RESULT=\([^,]*\).*/\1/"`
@@ -111,7 +115,7 @@ ${RESULT_ICON} <b>Resultado:</b>  $RESULT_TEXT
     echo "$output" | sed 's/^[ \t]*//;s/[ \t]*$//'
 }
 
-# Function to handle fatal errors
+# Bloco de detalhes para operacoes com resultado Fatal
 function getResultFatal () {
     parseResultFile "$DUPLICATI__RESULTFILE"
     local output="
@@ -120,7 +124,7 @@ function getResultFatal () {
     echo "$output" | sed 's/^[ \t]*//;s/[ \t]*$//'
 }
 
-# Function to handle restore operations
+# Bloco de estatisticas para operacoes de restauracao
 function getOperationRestore () {
     parseResultFile "$DUPLICATI__RESULTFILE"
     local output="
@@ -135,7 +139,7 @@ function getOperationRestore () {
     echo "$output" | sed 's/^[ \t]*//;s/[ \t]*$//'
 }
 
-# Function to handle backup operations
+# Bloco de estatisticas para operacoes de backup
 function getOperationBackup () {
     parseResultFile "$DUPLICATI__RESULTFILE"
     local output="
@@ -153,10 +157,10 @@ function getOperationBackup () {
     echo "$output" | sed 's/^[ \t]*//;s/[ \t]*$//'
 }
 
-# Skip if operation is List
+# Ignora operacoes de listagem (nao representam execucao de backup)
 if [ "$DUPLICATI__OPERATIONNAME" == "List" ]; then exit 0; fi
 
-# Generate message content
+# Monta o conteudo da mensagem conforme o evento e a operacao
 if [ "$DUPLICATI__EVENTNAME" == "AFTER" ]; then
     Duration=$(grep -oP '^Duration:\s*\K.*' "$DUPLICATI__RESULTFILE" | sed 's/\.[0-9]*$//' | tr -d '\r')
     [ -z "$Duration" ] && Duration="--:--:--"
@@ -179,7 +183,7 @@ else
 </pre>"
 fi
 
-# Send message to Telegram with HTML formatting
+# Envia a mensagem ao Telegram com formatacao HTML
 MESSAGE+="
 </pre>"
 curl -s "$TELEGRAM_URL" -d "chat_id=$TELEGRAM_CHATID" -d "text=$MESSAGE" -d "parse_mode=HTML" > /dev/null

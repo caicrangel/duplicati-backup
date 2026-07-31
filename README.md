@@ -179,12 +179,16 @@ Diferente do check-mounts (que roda no **host**, via cron), este roda
 **dentro do container** do Duplicati — a pasta `./scripts` já é montada como
 `/scripts` (somente leitura) no `docker-compose.yml`.
 
-Baseado no projeto
-[spupuz/duplicati-telegram-notifications](https://github.com/spupuz/duplicati-telegram-notifications),
-com dois ajustes para uso em produção: o **auto-update foi removido** (o
-script baixava e executava a versão mais recente direto do GitHub — as
-versões aqui são controladas pelo próprio repositório) e a chamada ao
-Telegram passou a **validar o certificado TLS** (removido o `curl -k`).
+Características relevantes para uso em produção:
+
+- **Sem auto-atualização.** O script não busca nem executa código externo em
+  runtime — a versão em uso é sempre a versionada neste repositório.
+- **TLS validado.** A chamada à API do Telegram verifica o certificado do
+  servidor (sem `curl -k`).
+- **Parser seguro.** O arquivo de resultado do Duplicati é lido sem `eval`,
+  de modo que nomes de arquivos/pastas com metacaracteres de shell não possam
+  ser interpretados como comando.
+- **Não interfere no job.** Sempre encerra com código `0`.
 
 **Configuração:**
 

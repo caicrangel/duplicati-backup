@@ -1,12 +1,16 @@
 # Segredos locais
 .env
 
-# Dados de runtime dos containers
-duplicati/config/
-duplicati/backups/
-filebrowser/database/
-filebrowser/config/
-filebrowser/srv/
-
-# Mantém a estrutura de pastas versionada
-!**/.gitkeep
+# Dados de runtime dos containers (mantém apenas o .gitkeep de cada pasta)
+duplicati/config/*
+duplicati/backups/*
+filebrowser/database/*
+filebrowser/config/*
+filebrowser/srv/*
+!duplicati/config/.gitkeep
+!duplicati/backups/.gitkeep
+!filebrowser/database/.gitkeep
+!filebrowser/config/.gitkeep
+!filebrowser/srv/restore/
+filebrowser/srv/restore/*
+!filebrowser/srv/restore/.gitkeep

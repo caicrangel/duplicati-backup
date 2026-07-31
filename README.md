@@ -58,11 +58,11 @@ servidor.
 ├── docker-compose.yml      # Definição dos serviços
 ├── .env.example            # Modelo de variáveis (copiar para .env)
 ├── scripts/
-│   ├── check-mounts.sh     # Valida/remonta os shares antes do backup (roda no host)
-│   ├── .telegram.example   # Credenciais do check-mounts (copiar para .telegram)
-│   ├── notify-telegram.sh  # Devolutiva do backup no Telegram (roda no container)
-│   ├── telegram_config.env.example  # Credenciais do notify (copiar para telegram_config.env)
-│   └── log/                # Logs dos scripts (gerado em runtime)
+│   ├── check-mounts.sh              # Valida/remonta os shares antes do backup (roda no host)
+│   ├── check-mounts.env.example     # Credenciais (copiar para check-mounts.env)
+│   ├── notify-telegram.sh           # Devolutiva do backup no Telegram (roda no container)
+│   ├── notify-telegram.env.example  # Credenciais (copiar para notify-telegram.env)
+│   └── log/                         # Logs dos scripts (gerado em runtime)
 ├── duplicati/
 │   ├── config/             # Configuração/banco do Duplicati (gerado em runtime)
 │   └── backups/            # Destino local dos backups (opcional)
@@ -152,8 +152,8 @@ O que estiver caído é remontado automaticamente a partir do `/etc/fstab`
 
    ```bash
    cd scripts
-   cp .telegram.example .telegram
-   chmod 600 .telegram   # e preencha TG_BOT_TOKEN e TG_CHAT_ID
+   cp check-mounts.env.example check-mounts.env
+   chmod 600 check-mounts.env   # e preencha TG_BOT_TOKEN e TG_CHAT_ID
    ```
 
 3. Agende no crontab do **root**, antes do horário do backup do Duplicati
@@ -192,8 +192,8 @@ Telegram passou a **validar o certificado TLS** (removido o `curl -k`).
 
    ```bash
    cd scripts
-   cp telegram_config.env.example telegram_config.env
-   chmod 600 telegram_config.env   # e preencha TELEGRAM_TOKEN e TELEGRAM_CHATID
+   cp notify-telegram.env.example notify-telegram.env
+   chmod 600 notify-telegram.env   # e preencha TELEGRAM_TOKEN e TELEGRAM_CHATID
    ```
 
 2. Em cada job do Duplicati, em **Opções avançadas**, adicione:
@@ -203,10 +203,10 @@ Telegram passou a **validar o certificado TLS** (removido o `curl -k`).
    | `run-script-after`  | `/scripts/notify-telegram.sh` |
    | `run-script-before` | `/scripts/notify-telegram.sh` *(opcional — avisa também no início)* |
 
-> Os dois scripts usam arquivos de credenciais separados (`.telegram` no host,
-> `telegram_config.env` no container), então podem inclusive notificar chats
-> diferentes — ex.: check-mounts para o grupo técnico e a devolutiva do backup
-> para o grupo do cliente.
+> Cada script tem seu próprio arquivo de credenciais, com o mesmo nome do
+> script (`check-mounts.env` e `notify-telegram.env`), então podem inclusive
+> notificar chats diferentes — ex.: check-mounts para o grupo técnico e a
+> devolutiva do backup para o grupo do cliente.
 
 ## Restauração
 

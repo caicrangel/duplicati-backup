@@ -18,7 +18,7 @@
 # To work, you need to set two required variables:
 #  TELEGRAM_TOKEN
 #  TELEGRAM_CHATID
-# These variables must be configured in 'telegram_config.env' located
+# These variables must be configured in 'notify-telegram.env' located
 # in the same directory as the script, or set as environment variables.
 #
 # DISCLAIMER (AS IS):
@@ -30,7 +30,7 @@
 # 1. Locate the script directory to load the relative configuration file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-CONFIG_FILE="${SCRIPT_DIR}/telegram_config.env"
+CONFIG_FILE="${SCRIPT_DIR}/notify-telegram.env"
 
 # 2. Load variables from config file if it exists, cleaning Windows CRLF line endings (\r)
 if [ -f "$CONFIG_FILE" ]; then
@@ -40,7 +40,7 @@ fi
 # 3. Verify presence of required variables (loaded from config or inherited from env)
 if [ -z "$TELEGRAM_TOKEN" ] || [ -z "$TELEGRAM_CHATID" ]; then
     echo "Error: TELEGRAM_TOKEN or TELEGRAM_CHATID is not configured!" >&2
-    echo "Please create a 'telegram_config.env' file in the same directory as the script" >&2
+    echo "Please create a 'notify-telegram.env' file in the same directory as the script" >&2
     echo "or set the corresponding environment variables." >&2
     exit 1
 fi

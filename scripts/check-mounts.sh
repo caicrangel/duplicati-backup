@@ -41,10 +41,10 @@ BOOT_RECENTE=3600
 
 # -------------------- TELEGRAM ------------------------
 # Recomendado: manter as credenciais fora deste arquivo.
-# Copie .telegram.example para .telegram (permissao 600) contendo:
+# Copie check-mounts.env.example para check-mounts.env (permissao 600) contendo:
 #   TG_BOT_TOKEN="123456:ABC-DEF..."
 #   TG_CHAT_ID="-1001234567890"
-TG_CONF="${SCRIPT_DIR}/.telegram"
+TG_CONF="${SCRIPT_DIR}/check-mounts.env"
 [ -r "$TG_CONF" ] && . "$TG_CONF"
 
 TG_BOT_TOKEN="${TG_BOT_TOKEN:-}"

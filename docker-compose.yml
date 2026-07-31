@@ -1,0 +1,69 @@
+services:
+  duplicati:
+    image: lscr.io/linuxserver/duplicati:latest
+    container_name: duplicati
+    # Nome exibido pelo Duplicati na interface. Ajuste para identificar o servidor.
+    hostname: ${SERVER_HOSTNAME:-srv-exemplo}
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-America/Sao_Paulo}
+      # Senha de acesso à interface web e chave de criptografia das configurações.
+      # Definidas no arquivo .env (veja .env.example).
+      - DUPLICATI__WEBSERVICE_PASSWORD=${DUPLICATI_WEB_PASSWORD}
+      - SETTINGS_ENCRYPTION_KEY=${DUPLICATI_SETTINGS_KEY}
+    volumes:
+      - ./duplicati/config:/config
+      - ./duplicati/backups:/backups
+      # Pasta de restauração: os arquivos restaurados aqui ficam acessíveis
+      # pelo File Browser em /srv/restore.
+      - ./filebrowser/srv/restore:/backup-restore
+      - /etc/localtime:/etc/localtime:ro
+
+      # Mapeamento de rede para realizar o backup dentro do duplicati.
+      # Ajuste "source" para o ponto de montagem do seu servidor de arquivos
+      # (ex.: /mnt/fileserver montado via NFS/CIFS no host).
+      # propagation: rslave -> o container acompanha remontagens feitas no host,
+      # dispensando o restart quando o share cai e volta.
+      - type: bind
+        source: ${FILESERVER_MOUNT:-/mnt/fileserver}
+        target: /fileserver
+        read_only: true
+        bind:
+          propagation: rslave
+
+      # Habilitar o mapeamento abaixo caso utilize o servidor de arquivos do Samba
+      # rodando em outro stack neste mesmo host.
+      #- type: bind
+      #  source: ../samba/samba/shares
+      #  target: /fileserver
+      #  read_only: true
+      #  bind:
+      #    propagation: rslave
+
+    ports:
+      - "8900:8200"
+    restart: unless-stopped
+    networks:
+      - infra
+
+  filebrowser:
+    image: filebrowser/filebrowser:s6
+    container_name: filebrowser
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    volumes:
+      - ./filebrowser/srv:/srv
+      - ./filebrowser/database:/database
+      - ./filebrowser/config:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - infra
+
+networks:
+  infra:
+    driver: bridge
